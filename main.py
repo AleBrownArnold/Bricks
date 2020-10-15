@@ -7,6 +7,7 @@ pygame.init()
 width = 640
 height = 480
 colourBlue = (0, 0, 64)
+colourWhite = (255, 255, 255)
 
 class Ball(pygame.sprite.Sprite):
     def __init__(self):
@@ -70,15 +71,30 @@ class Wall(pygame.sprite.Group):
                 posX = 0
                 posY += brick.rect.height
 
-def JuegoTerminado():
+def GameOver():
     font = pygame.font.SysFont('Arial', 72)
-    text = font.render('Game Over', True, (255, 255, 255))
+    text = font.render('Game Over', True, colourWhite)
     text_rect = text.get_rect()
     text_rect.center = [int(width / 2), int(height / 2)]
     screen.blit(text, text_rect)
     pygame.display.flip()
     time.sleep(3)
     sys.exit()
+
+def Puntuation():
+    font = pygame.font.SysFont('Consolas', 20)
+    text = font.render(str(puntuation).zfill(5), True, colourWhite)
+    text_rect = text.get_rect()
+    text_rect.topleft = [0, 0]
+    screen.blit(text, text_rect)
+
+def Lifes():
+    font = pygame.font.SysFont('Consolas', 20)
+    string = "Lifes: " +str(lifes).zfill(2)
+    text = font.render(string, True, colourWhite)
+    text_rect = text.get_rect()
+    text_rect.topright = [width, 0]
+    screen.blit(text, text_rect)
 
 screen = pygame.display.set_mode((width, height))
 
@@ -88,6 +104,9 @@ pygame.key.set_repeat(30)
 ball = Ball()
 player = Player()
 wall = Wall(50)
+puntuation = 0
+lifes = 3
+waitingServe = True
 
 while True:
     clock.tick(60)
@@ -97,8 +116,17 @@ while True:
             sys.exit()
         elif event.type == pygame.KEYDOWN:
             player.update(event)
+            if waitingServe and event.key == pygame.K_SPACE:
+                waitingServe = False
+                if ball.rect.centerx < width / 2:
+                    ball.speed = [3, -3]
+                else:
+                    ball.speed = [-3, -3]
 
-    ball.update()
+    if waitingServe:
+        ball.rect.midbottom = player.rect.midtop
+    else:
+        ball.update()
 
     if pygame.sprite.collide_rect(ball, player):
         ball.speed[1] = -ball.speed[1]
@@ -112,10 +140,17 @@ while True:
         else:
             ball.speed[1] = -ball.speed[1]
         wall.remove(brick)
+        puntuation += 10
 
     if ball.rect.top >= height:
-        JuegoTerminado()
+        lifes -= 1
+        waitingServe = True
+    if lifes <= 0:
+        GameOver()
+
     screen.fill(colourBlue)
+    Puntuation()
+    Lifes()
     wall.draw(screen)
 
     screen.blit(ball.image, ball.rect)
