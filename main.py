@@ -2,12 +2,156 @@ import pygame
 import sys
 import time
 
-pygame.init()
 
 width = 640
 height = 480
 colourBlue = (0, 0, 64)
 colourWhite = (255, 255, 255)
+
+class Scene:
+
+    def __init__(self):
+        self.nextScene = False
+        self.playing = True
+
+    def read_events(self, events):
+        pass
+
+    def update(self):
+        pass
+
+    def draw_scene(self, screen):
+        pass
+
+    def change_scene(self, scene):
+        self.nextScene = scene
+
+
+class Controller:
+    def __init__(self, title="", res=(width, height)):
+        pygame.init()
+
+        self.screen = pygame.display.set_mode(res)
+        pygame.display.set_caption(title)
+        self.clock = pygame.time.Clock()
+        self.scene = None
+        self.scenes = {}
+
+    def run(self, initial_scene, fps=60):
+        self.scene = self.scenes[initial_scene]
+        playing = True
+        while playing:
+            self.clock.tick(fps)
+            events = pygame.event.get()
+
+            for event in events:
+                if event.type == pygame.QUIT:
+                    playing = False
+            self.scene.read_events(events)
+            self.scene.update()
+            self.scene.draw_scene(self.screen)
+            self.choose_scene(self.scene.nextScene)
+            if playing:
+                playing = self.scene.playing
+            pygame.display.flip()
+
+        time.sleep(3)
+
+    def choose_scene(self, next_scene):
+        if next_scene:
+            if next_scene not in self.scenes:
+                self.add_scene(next_scene)
+            self.scene = self.scenes[next_scene]
+
+    def add_scene(self, scene_name):
+        scene_class = scene_name + 'Scene'
+        scene_obj = globals()[scene_class]
+        self.scenes[scene_name] = scene_obj()
+
+
+class Lvl1Scene(Scene):
+    def __init__(self):
+        Scene.__init__(self)
+        self.ball = Ball()
+        self.player = Player()
+        self.wall = Wall(50)
+        self.puntuation = 0
+        self.lifes = 3
+        self.waitingServe = True
+        pygame.key.set_repeat(30)
+
+    def read_events(self, events):
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                self.player.update(event)
+                if self.waitingServe and event.key == pygame.K_SPACE:
+                    self.waitingServe = False
+                    if self.ball.rect.centerx < width / 2:
+                        self.ball.speed = [3, -3]
+                    else:
+                        self.ball.speed = [-3, -3]
+
+    def update(self):
+        if self.waitingServe:
+            self.ball.rect.midbottom = self.player.rect.midtop
+        else:
+            self.ball.update()
+
+        if pygame.sprite.collide_rect(self.ball, self.player):
+            self.ball.speed[1] = -self.ball.speed[1]
+
+        list = pygame.sprite.spritecollide(self.ball, self.wall, False)
+        if list:
+            brick = list[0]
+            cx = self.ball.rect.centerx
+            if cx < brick.rect.left or cx > brick.rect.right:
+                self.ball.speed[0] = -self.ball.speed[0]
+            else:
+                self.ball.speed[1] = -self.ball.speed[1]
+            self.wall.remove(brick)
+            self.puntuation += 10
+
+        if self.ball.rect.top >= height:
+            self.lifes -= 1
+            self.waitingServe = True
+        if self.lifes <= 0:
+            self.change_scene('GameOver')
+
+    def draw_scene(self, screen):
+        screen.fill(colourBlue)
+        self.show_puntuation(screen)
+        self.show_lifes(screen)
+        self.wall.draw(screen)
+
+        screen.blit(self.ball.image, self.ball.rect)
+        screen.blit(self.player.image, self.player.rect)
+
+    def show_puntuation(self, screen):
+        font = pygame.font.SysFont('Consolas', 20)
+        text = font.render(str(self.puntuation).zfill(5), True, colourWhite)
+        text_rect = text.get_rect()
+        text_rect.topleft = [0, 0]
+        screen.blit(text, text_rect)
+
+    def show_lifes(self, screen):
+        font = pygame.font.SysFont('Consolas', 20)
+        string = "Lifes: " + str(self.lifes).zfill(2)
+        text = font.render(string, True, colourWhite)
+        text_rect = text.get_rect()
+        text_rect.topright = [width, 0]
+        screen.blit(text, text_rect)
+
+class GameOverScene(Scene):
+    def update(self):
+        self.playing = False
+
+    def draw_scene(self, screen):
+        font = pygame.font.SysFont('Arial', 72)
+        text = font.render('Game Over', True, colourWhite)
+        text_rect = text.get_rect()
+        text_rect.center = [int(width / 2), int(height / 2)]
+        screen.blit(text, text_rect)
+        pygame.display.flip()
 
 class Ball(pygame.sprite.Sprite):
     def __init__(self):
@@ -58,7 +202,7 @@ class Wall(pygame.sprite.Group):
         pygame.sprite.Group.__init__(self)
 
         brick1 = Brick((0, 0))
-        brick2 = Brick((100,100))
+        brick2 = Brick((100, 100))
 
         posX = 0
         posY = 20
@@ -71,89 +215,16 @@ class Wall(pygame.sprite.Group):
                 posX = 0
                 posY += brick.rect.height
 
-def GameOver():
-    font = pygame.font.SysFont('Arial', 72)
-    text = font.render('Game Over', True, colourWhite)
-    text_rect = text.get_rect()
-    text_rect.center = [int(width / 2), int(height / 2)]
-    screen.blit(text, text_rect)
-    pygame.display.flip()
-    time.sleep(3)
-    sys.exit()
 
-def Puntuation():
-    font = pygame.font.SysFont('Consolas', 20)
-    text = font.render(str(puntuation).zfill(5), True, colourWhite)
-    text_rect = text.get_rect()
-    text_rect.topleft = [0, 0]
-    screen.blit(text, text_rect)
+controller = Controller('Arkanoid', (640, 480))
+controller.add_scene('Lvl1')
+controller.run('Lvl1')
 
-def Lifes():
-    font = pygame.font.SysFont('Consolas', 20)
-    string = "Lifes: " +str(lifes).zfill(2)
-    text = font.render(string, True, colourWhite)
-    text_rect = text.get_rect()
-    text_rect.topright = [width, 0]
-    screen.blit(text, text_rect)
 
-screen = pygame.display.set_mode((width, height))
 
-pygame.display.set_caption("brick")
-clock = pygame.time.Clock()
-pygame.key.set_repeat(30)
-ball = Ball()
-player = Player()
-wall = Wall(50)
-puntuation = 0
-lifes = 3
-waitingServe = True
 
-while True:
-    clock.tick(60)
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            sys.exit()
-        elif event.type == pygame.KEYDOWN:
-            player.update(event)
-            if waitingServe and event.key == pygame.K_SPACE:
-                waitingServe = False
-                if ball.rect.centerx < width / 2:
-                    ball.speed = [3, -3]
-                else:
-                    ball.speed = [-3, -3]
 
-    if waitingServe:
-        ball.rect.midbottom = player.rect.midtop
-    else:
-        ball.update()
 
-    if pygame.sprite.collide_rect(ball, player):
-        ball.speed[1] = -ball.speed[1]
 
-    list = pygame.sprite.spritecollide(ball, wall, False)
-    if list:
-        brick = list[0]
-        cx = ball.rect.centerx
-        if cx < brick.rect.left or cx > brick.rect.right:
-            ball.speed[0] = -ball.speed[0]
-        else:
-            ball.speed[1] = -ball.speed[1]
-        wall.remove(brick)
-        puntuation += 10
-
-    if ball.rect.top >= height:
-        lifes -= 1
-        waitingServe = True
-    if lifes <= 0:
-        GameOver()
-
-    screen.fill(colourBlue)
-    Puntuation()
-    Lifes()
-    wall.draw(screen)
-
-    screen.blit(ball.image, ball.rect)
-    screen.blit(player.image, player.rect)
-    pygame.display.flip()
 
