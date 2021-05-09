@@ -199,6 +199,7 @@ class Brick(pygame.sprite.Sprite):
 
 class Wall(pygame.sprite.Group):
     def __init__(self, brickQty):
+        # Ingresando un comentario
         pygame.sprite.Group.__init__(self)
 
         brick1 = Brick((0, 0))
